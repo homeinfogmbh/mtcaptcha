@@ -12,7 +12,7 @@ from typing import Any, NamedTuple, Optional, Union
 from Crypto.Cipher import AES
 
 
-__all__ = ['KeyAlreadyUsed', 'TokenInfo', 'decode', 'decrypt', 'verify']
+__all__ = ['VerificationError', 'TokenInfo', 'decode', 'decrypt', 'verify']
 
 
 PATH = '/etc/mtcaptcha.json'
@@ -20,8 +20,13 @@ REGEX = r'v1\(([a-z0-9]+),([a-z0-9]+),([A-Za-z0-9\-]+),([a-z0-9]+),(.+)\)'
 SINGLE_USE_DECRYPTION_KEYS = set()
 
 
-class KeyAlreadyUsed(Exception):
-    """Indicate that a single-use encryption key has already been used."""
+class VerificationError(Exception):
+    """Indicate that the verification failed."""
+
+    def __init__(self, message: str, json: Optional[dict[str, Any]] = None):
+        super().__init__(message, json)
+        self.message = message
+        self.json = json
 
 
 class TokenInfo(NamedTuple):
@@ -60,7 +65,7 @@ class TokenInfo(NamedTuple):
         key = md5(private_key.encode() + self.random_seed.encode()).digest()
 
         if key in SINGLE_USE_DECRYPTION_KEYS:
-            raise KeyAlreadyUsed()
+            raise VerificationError('Key already used.')
 
         SINGLE_USE_DECRYPTION_KEYS.add(key)
         return key
@@ -77,26 +82,25 @@ def verify(
 
     try:
         json = decode(token_info, private_key=private_key)
-    except KeyAlreadyUsed:
-        return False
-    except UnicodeEncodeError:
-        return False
-    except JSONDecodeError:
-        return False
+    except (UnicodeEncodeError, JSONDecodeError) as error:
+        raise VerificationError('Decryption failed.') from error
 
     if not json.get('codeDesc', '').startswith('valid:'):
-        return False
+        raise VerificationError('codeDesc not valid.', json=json)
 
     if not (timestamp := json.get('timestampSec')):
-        return False
+        raise VerificationError('timestampSec not set.', json=json)
 
     if now is None:
         now = datetime.now()
 
     if (timestamp := datetime.fromtimestamp(timestamp)) > now:
-        return False
+        raise VerificationError('Token not yet valid.', json=json)
 
-    return timestamp + max_lifetime > now
+    if timestamp + max_lifetime > now:
+        return True
+
+    raise VerificationError('Token no longer valid.', json=json)
 
 
 def decode(

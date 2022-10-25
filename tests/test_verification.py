@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from unittest import TestCase
 
-from mtcaptcha import SINGLE_USE_DECRYPTION_KEYS, verify
+from mtcaptcha import SINGLE_USE_DECRYPTION_KEYS, VerificationError, verify
 
 
 class TestTokens(TestCase):
@@ -78,8 +78,11 @@ class TestTokens(TestCase):
         SINGLE_USE_DECRYPTION_KEYS.clear()  # Clear used keys.
 
         for code in self.tokens:
-            self.assertFalse(verify(
-                code,
-                private_key=self.private_key,
-                now=self.now + timedelta(seconds=61)
-            ))
+            self.assertRaises(
+                VerificationError,
+                lambda: verify(
+                    code,
+                    private_key=self.private_key,
+                    now=self.now + timedelta(seconds=61)
+                )
+            )
