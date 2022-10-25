@@ -1,17 +1,17 @@
 """MTCaptcha decryption and validation."""
 
 from __future__ import annotations
-from base64 import b64decode
+from base64 import urlsafe_b64decode
 from hashlib import md5
-from json import load
+from json import load, loads
 from pathlib import Path
 from re import fullmatch
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional, Union
 
 from Crypto.Cipher import AES
 
 
-__all__ = ['TokenInfo', 'decrypt']
+__all__ = ['TokenInfo', 'decode', 'decrypt']
 
 
 PATH = '/etc/mtcaptcha.json'
@@ -38,7 +38,7 @@ class TokenInfo(NamedTuple):
     @property
     def encrypted_token_info_binary(self) -> bytes:
         """Returns the EncryptedTokenInfoBinary."""
-        return b64decode(self.encrypted_token_info.replace('*', '='))
+        return urlsafe_b64decode(self.encrypted_token_info.replace('*', '='))
 
     def calculate_customer_checksum(self, private_key: str) -> str:
         """Calculate the customer checksum."""
@@ -54,15 +54,24 @@ class TokenInfo(NamedTuple):
         return md5(private_key.encode() + self.random_seed.encode()).digest()
 
 
-def decrypt(
-        token_info: TokenInfo,
+def decode(
+        token_info: Union[TokenInfo, str],
         *,
         private_key: Optional[str] = None,
-) -> bytes:
-    """Decrypt the token."""
+) -> dict[str, Any]:
+    """Decode a token."""
+
+    if isinstance(token_info, str):
+        token_info = TokenInfo.from_string(token_info)
 
     if private_key is None:
         private_key = private_key_by_sitekey(token_info.sitekey)
+
+    return loads(unpad_pkcs5(decrypt(token_info, private_key).decode()))
+
+
+def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
+    """Decrypt the token."""
 
     cipher = AES.new(
         key := token_info.single_use_decryption_key(private_key),
@@ -70,6 +79,12 @@ def decrypt(
         key
     )
     return cipher.decrypt(token_info.encrypted_token_info_binary)
+
+
+def unpad_pkcs5(message: str) -> str:
+    """Unpad the decoded message."""
+
+    return message[:-ord(message[-1])]
 
 
 def private_key_by_sitekey(sitekey: str) -> str:
