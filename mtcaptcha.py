@@ -11,6 +11,9 @@ from typing import NamedTuple, Optional
 from Crypto.Cipher import AES
 
 
+__all__ = ['TokenInfo', 'decrypt']
+
+
 PATH = '/etc/mtcaptcha.json'
 REGEX = r'v1\(([a-z0-9]+),([a-z0-9]+),([A-Za-z0-9\-]+),([a-z0-9]+),(.+)\)'
 
