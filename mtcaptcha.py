@@ -5,8 +5,7 @@ from base64 import urlsafe_b64decode
 from datetime import datetime, timedelta
 from functools import wraps
 from hashlib import md5
-from json import JSONDecodeError, load, loads
-from pathlib import Path
+from json import JSONDecodeError, loads
 from re import fullmatch
 from typing import Any, Callable, NamedTuple, Optional, Union
 
@@ -81,7 +80,7 @@ class TokenInfo(NamedTuple):
 
 def mtcaptcha(
         token_getter: Callable[[], Union[TokenInfo, str]],
-        private_key_getter: Optional[Callable[[], str]] = None
+        private_key_getter: Callable[[], str]
 ) -> Callable[[Callable], Callable]:
     """Decorator generator."""
 
@@ -106,15 +105,15 @@ def mtcaptcha(
 
 def verify(
         token_info: Union[TokenInfo, str],
+        private_key: Optional[str],
         *,
-        private_key: Optional[str] = None,
         max_lifetime: timedelta = timedelta(seconds=60),
         now: Optional[datetime] = None
 ) -> bool:
     """Verify a token."""
 
     try:
-        json = decode(token_info, private_key=private_key)
+        json = decode(token_info, private_key)
     except (UnicodeEncodeError, JSONDecodeError) as error:
         raise VerificationError('Decryption failed.') from error
 
@@ -138,16 +137,12 @@ def verify(
 
 def decode(
         token_info: Union[TokenInfo, str],
-        *,
-        private_key: Optional[str] = None,
+        private_key: Optional[str],
 ) -> dict[str, Any]:
     """Decode a token."""
 
     if isinstance(token_info, str):
         token_info = TokenInfo.from_string(token_info)
-
-    if private_key is None:
-        private_key = private_key_by_sitekey(token_info.sitekey)
 
     return loads(unpad_pkcs5(decrypt(token_info, private_key)))
 
@@ -167,19 +162,3 @@ def unpad_pkcs5(message: bytes) -> bytes:
     """Unpad the decoded message."""
 
     return message[:-message[-1]]
-
-
-def private_key_by_sitekey(sitekey: str) -> str:
-    """Return the private key by the given sitekey."""
-
-    return load_keymap()[sitekey]
-
-
-def load_keymap(path: Path = PATH) -> dict[str, str]:
-    """Load a map of sitekey -> private key mappings."""
-
-    try:
-        with path.open('rb') as file:
-            return load(file)
-    except FileNotFoundError:
-        return {}
