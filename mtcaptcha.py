@@ -3,16 +3,24 @@
 from __future__ import annotations
 from base64 import urlsafe_b64decode
 from datetime import datetime, timedelta
+from functools import wraps
 from hashlib import md5
 from json import JSONDecodeError, load, loads
 from pathlib import Path
 from re import fullmatch
-from typing import Any, NamedTuple, Optional, Union
+from typing import Any, Callable, NamedTuple, Optional, Union
 
 from Crypto.Cipher import AES
 
 
-__all__ = ['VerificationError', 'TokenInfo', 'decode', 'decrypt', 'verify']
+__all__ = [
+    'VerificationError',
+    'TokenInfo',
+    'decode',
+    'decrypt',
+    'mtcaptcha',
+    'verify'
+]
 
 
 PATH = '/etc/mtcaptcha.json'
@@ -69,6 +77,31 @@ class TokenInfo(NamedTuple):
 
         SINGLE_USE_DECRYPTION_KEYS.add(key)
         return key
+
+
+def mtcaptcha(
+        token_getter: Callable[[], Union[TokenInfo, str]],
+        private_key_getter: Optional[Callable[[], str]] = None
+) -> Callable[[Callable], Callable]:
+    """Decorator generator."""
+
+    def decorator(function: Callable) -> Callable:
+        @wraps(function)
+        def wrapper(*args, **kwargs) -> Any:
+            """Runs the wrapped function if
+            the mcaptcha verification succeeded.
+            """
+            if private_key_getter is not None:
+                private_key = private_key_getter()
+            else:
+                private_key = None
+
+            if verify(token_getter(), private_key=private_key):
+                return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def verify(
