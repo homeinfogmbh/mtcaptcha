@@ -112,7 +112,7 @@ def decode(
     if private_key is None:
         private_key = private_key_by_sitekey(token_info.sitekey)
 
-    return loads(unpad_pkcs5(decrypt(token_info, private_key).decode()))
+    return loads(unpad_pkcs5(decrypt(token_info, private_key)))
 
 
 def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
@@ -126,10 +126,10 @@ def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
     return cipher.decrypt(token_info.encrypted_token_info_binary)
 
 
-def unpad_pkcs5(message: str) -> str:
+def unpad_pkcs5(message: bytes) -> bytes:
     """Unpad the decoded message."""
 
-    return message[:-ord(message[-1])]
+    return message[:-message[-1]]
 
 
 def private_key_by_sitekey(sitekey: str) -> str:
