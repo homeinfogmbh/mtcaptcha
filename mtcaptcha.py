@@ -11,11 +11,16 @@ from typing import Any, NamedTuple, Optional, Union
 from Crypto.Cipher import AES
 
 
-__all__ = ['TokenInfo', 'decode', 'decrypt']
+__all__ = ['KeyAlreadyUsed', 'TokenInfo', 'decode', 'decrypt']
 
 
 PATH = '/etc/mtcaptcha.json'
 REGEX = r'v1\(([a-z0-9]+),([a-z0-9]+),([A-Za-z0-9\-]+),([a-z0-9]+),(.+)\)'
+SINGLE_USE_DECRYPTION_KEYS = set()
+
+
+class KeyAlreadyUsed(Exception):
+    """Indicate that a single-use encryption key has already been used."""
 
 
 class TokenInfo(NamedTuple):
@@ -51,7 +56,13 @@ class TokenInfo(NamedTuple):
 
     def single_use_decryption_key(self, private_key: str) -> bytes:
         """Calculate the single use decryption key."""
-        return md5(private_key.encode() + self.random_seed.encode()).digest()
+        key = md5(private_key.encode() + self.random_seed.encode()).digest()
+
+        if key in SINGLE_USE_DECRYPTION_KEYS:
+            raise KeyAlreadyUsed()
+
+        SINGLE_USE_DECRYPTION_KEYS.add(key)
+        return key
 
 
 def decode(
