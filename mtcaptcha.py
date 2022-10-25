@@ -96,5 +96,8 @@ def private_key_by_sitekey(sitekey: str) -> str:
 def load_keymap(path: Path = PATH) -> dict[str, str]:
     """Load a map of sitekey -> private key mappings."""
 
-    with path.open('rb') as file:
-        return load(file)
+    try:
+        with path.open('rb') as file:
+            return load(file)
+    except FileNotFoundError:
+        return {}
