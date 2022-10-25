@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 from base64 import urlsafe_b64decode
+from datetime import datetime, timedelta
 from hashlib import md5
-from json import load, loads
+from json import JSONDecodeError, load, loads
 from pathlib import Path
 from re import fullmatch
 from typing import Any, NamedTuple, Optional, Union
@@ -11,7 +12,7 @@ from typing import Any, NamedTuple, Optional, Union
 from Crypto.Cipher import AES
 
 
-__all__ = ['KeyAlreadyUsed', 'TokenInfo', 'decode', 'decrypt']
+__all__ = ['KeyAlreadyUsed', 'TokenInfo', 'decode', 'decrypt', 'verify']
 
 
 PATH = '/etc/mtcaptcha.json'
@@ -63,6 +64,39 @@ class TokenInfo(NamedTuple):
 
         SINGLE_USE_DECRYPTION_KEYS.add(key)
         return key
+
+
+def verify(
+        token_info: Union[TokenInfo, str],
+        *,
+        private_key: Optional[str] = None,
+        max_lifetime: timedelta = timedelta(seconds=60),
+        now: Optional[datetime] = None
+) -> bool:
+    """Verify a token."""
+
+    try:
+        json = decode(token_info, private_key=private_key)
+    except KeyAlreadyUsed:
+        return False
+    except UnicodeEncodeError:
+        return False
+    except JSONDecodeError:
+        return False
+
+    if not json.get('codeDesc', '').startswith('valid:'):
+        return False
+
+    if not (timestamp := json.get('timestampSec')):
+        return False
+
+    if now is None:
+        now = datetime.now()
+
+    if (timestamp := datetime.fromtimestamp(timestamp)) > now:
+        return False
+
+    return timestamp + max_lifetime > now
 
 
 def decode(

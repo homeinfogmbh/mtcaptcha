@@ -1,11 +1,12 @@
-"""Test decryption."""
+"""Test verification."""
 
+from datetime import datetime, timedelta
 from unittest import TestCase
 
-from mtcaptcha import decode
+from mtcaptcha import SINGLE_USE_DECRYPTION_KEYS, verify
 
 
-class TestDecryption(TestCase):
+class TestTokens(TestCase):
     """Test token decryption."""
 
     def setUp(self) -> None:
@@ -51,7 +52,34 @@ class TestDecryption(TestCase):
                 "ip": "10.10.10.10"
             }
         }
+        self.now = datetime.fromtimestamp(981173106)
 
-    def test_token_decryption(self):
-        for code, token in self.tokens.items():
-            self.assertEqual(decode(code, private_key=self.private_key), token)
+    def test_verify_immediately(self):
+        SINGLE_USE_DECRYPTION_KEYS.clear()  # Clear used keys.
+
+        for code in self.tokens:
+            self.assertTrue(verify(
+                code,
+                private_key=self.private_key,
+                now=self.now
+            ))
+
+    def test_verify_in_time(self):
+        SINGLE_USE_DECRYPTION_KEYS.clear()  # Clear used keys.
+
+        for code in self.tokens:
+            self.assertTrue(verify(
+                code,
+                private_key=self.private_key,
+                now=self.now + timedelta(seconds=59)
+            ))
+
+    def test_verify_timeout(self):
+        SINGLE_USE_DECRYPTION_KEYS.clear()  # Clear used keys.
+
+        for code in self.tokens:
+            self.assertFalse(verify(
+                code,
+                private_key=self.private_key,
+                now=self.now + timedelta(seconds=61)
+            ))
