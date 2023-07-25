@@ -12,18 +12,11 @@ from typing import Any, Callable, NamedTuple, Optional, Union
 from Crypto.Cipher import AES
 
 
-__all__ = [
-    'VerificationError',
-    'TokenInfo',
-    'decode',
-    'decrypt',
-    'mtcaptcha',
-    'verify'
-]
+__all__ = ["VerificationError", "TokenInfo", "decode", "decrypt", "mtcaptcha", "verify"]
 
 
-PATH = '/etc/mtcaptcha.json'
-REGEX = r'v1\(([a-z0-9]+),([a-z0-9]+),([A-Za-z0-9\-]+),([a-z0-9]+),(.+)\)'
+PATH = "/etc/mtcaptcha.json"
+REGEX = r"v1\(([a-z0-9]+),([a-z0-9]+),([A-Za-z0-9\-]+),([a-z0-9]+),(.+)\)"
 SINGLE_USE_DECRYPTION_KEYS = set()
 
 
@@ -51,12 +44,12 @@ class TokenInfo(NamedTuple):
         if match := fullmatch(REGEX, string):
             return cls(*match.groups())
 
-        raise ValueError('Invalid token info:', str)
+        raise ValueError("Invalid token info:", str)
 
     @property
     def encrypted_token_info_binary(self) -> bytes:
         """Returns the EncryptedTokenInfoBinary."""
-        return urlsafe_b64decode(self.encrypted_token_info.replace('*', '='))
+        return urlsafe_b64decode(self.encrypted_token_info.replace("*", "="))
 
     def calculate_customer_checksum(self, private_key: str) -> str:
         """Calculate the customer checksum."""
@@ -72,15 +65,15 @@ class TokenInfo(NamedTuple):
         key = md5(private_key.encode() + self.random_seed.encode()).digest()
 
         if key in SINGLE_USE_DECRYPTION_KEYS:
-            raise VerificationError('Key already used.')
+            raise VerificationError("Key already used.")
 
         SINGLE_USE_DECRYPTION_KEYS.add(key)
         return key
 
 
 def mtcaptcha(
-        token_getter: Callable[[], Union[TokenInfo, str]],
-        private_key_getter: Callable[[], str]
+    token_getter: Callable[[], Union[TokenInfo, str]],
+    private_key_getter: Callable[[], str],
 ) -> Callable[[Callable], Callable]:
     """Decorator generator."""
 
@@ -104,40 +97,40 @@ def mtcaptcha(
 
 
 def verify(
-        token_info: Union[TokenInfo, str],
-        private_key: Optional[str],
-        *,
-        max_lifetime: timedelta = timedelta(seconds=60),
-        now: Optional[datetime] = None
+    token_info: Union[TokenInfo, str],
+    private_key: Optional[str],
+    *,
+    max_lifetime: timedelta = timedelta(seconds=60),
+    now: Optional[datetime] = None,
 ) -> bool:
     """Verify a token."""
 
     try:
         json = decode(token_info, private_key)
     except (UnicodeEncodeError, JSONDecodeError) as error:
-        raise VerificationError('Decryption failed.') from error
+        raise VerificationError("Decryption failed.") from error
 
-    if not json.get('codeDesc', '').startswith('valid:'):
-        raise VerificationError('codeDesc not valid.', json=json)
+    if not json.get("codeDesc", "").startswith("valid:"):
+        raise VerificationError("codeDesc not valid.", json=json)
 
-    if not (timestamp := json.get('timestampSec')):
-        raise VerificationError('timestampSec not set.', json=json)
+    if not (timestamp := json.get("timestampSec")):
+        raise VerificationError("timestampSec not set.", json=json)
 
     if now is None:
         now = datetime.now()
 
     if (timestamp := datetime.fromtimestamp(timestamp)) > now:
-        raise VerificationError('Token not yet valid.', json=json)
+        raise VerificationError("Token not yet valid.", json=json)
 
     if timestamp + max_lifetime > now:
         return True
 
-    raise VerificationError('Token no longer valid.', json=json)
+    raise VerificationError("Token no longer valid.", json=json)
 
 
 def decode(
-        token_info: Union[TokenInfo, str],
-        private_key: Optional[str],
+    token_info: Union[TokenInfo, str],
+    private_key: Optional[str],
 ) -> dict[str, Any]:
     """Decode a token."""
 
@@ -151,9 +144,7 @@ def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
     """Decrypt the token."""
 
     cipher = AES.new(
-        key := token_info.single_use_decryption_key(private_key),
-        AES.MODE_CBC,
-        key
+        key := token_info.single_use_decryption_key(private_key), AES.MODE_CBC, key
     )
     return cipher.decrypt(token_info.encrypted_token_info_binary)
 
@@ -161,4 +152,4 @@ def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
 def unpad_pkcs5(message: bytes) -> bytes:
     """Unpad the decoded message."""
 
-    return message[:-message[-1]]
+    return message[: -message[-1]]
