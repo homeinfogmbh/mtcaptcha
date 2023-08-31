@@ -139,7 +139,7 @@ def decode(
         token_info = TokenInfo.from_string(token_info)
 
     try:
-        return loads(json := decrypt(token_info, private_key))
+        return loads(unpad_pkcs5(json := decrypt(token_info, private_key)))
     except UnicodeDecodeError:
         getLogger("mtcaptcha").error("Could not load JSON.")
         getLogger("mtcaptcha").error(f"Token info: {token_info}")
@@ -160,4 +160,4 @@ def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
 def unpad_pkcs5(message: bytes) -> bytes:
     """Unpad the decoded message."""
 
-    return message[: -message[-1]]
+    return message[: -ord(message[len(message) - 1 :])]
