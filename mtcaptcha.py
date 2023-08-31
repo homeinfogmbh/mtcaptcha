@@ -140,7 +140,7 @@ def decode(
     try:
         return loads(unpad_pkcs5(decrypt(token_info, private_key)))
     except JSONDecodeError as error:
-        raise VerificationError("Invalid private key.") from error
+        raise VerificationError("Site key does not match private key.") from error
 
 
 def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
