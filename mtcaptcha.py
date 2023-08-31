@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from functools import wraps
 from hashlib import md5
 from json import JSONDecodeError, loads
-from logging import getLogger
 from re import fullmatch
 from typing import Any, Callable, NamedTuple, Optional, Union
 
@@ -138,15 +137,7 @@ def decode(
     if isinstance(token_info, str):
         token_info = TokenInfo.from_string(token_info)
 
-    try:
-        return loads(json := unpad_pkcs5(decrypted := decrypt(token_info, private_key)))
-    except UnicodeDecodeError:
-        getLogger("mtcaptcha").error("Could not load JSON.")
-        getLogger("mtcaptcha").error(f"Token info: {token_info}")
-        getLogger("mtcaptcha").error(f"Private key: {private_key}")
-        getLogger("mtcaptcha").error(f"Decrypted: {decrypted}")
-        getLogger("mtcaptcha").error(f"JSON: {json}")
-        raise
+    return loads(unpad_pkcs5(decrypt(token_info, private_key)))
 
 
 def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
@@ -161,4 +152,4 @@ def decrypt(token_info: TokenInfo, private_key: str) -> bytes:
 def unpad_pkcs5(message: bytes) -> bytes:
     """Unpad the decoded message."""
 
-    return message[: -ord(message[len(message) - 1 :])]
+    return message[: -message[-1]]
